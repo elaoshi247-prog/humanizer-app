@@ -8,19 +8,79 @@ load_dotenv()
 API_KEY = os.getenv("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY", "")
 
 
-def humanize_with_ai(text, tone="professional"):
-    if not API_KEY:
-        return "API key is missing."
+def build_prompt(text, tone, prompt_mode, audience, use_case, constraints):
+    if prompt_mode == "First-person rewrite":
+        return f"""
+Please rewrite the following content from a first-person perspective, transforming it from a neutral summary into a natural personal version.
 
-    prompt = f"""
-Rewrite the text below to sound natural, clear, and human.
+Content to rewrite:
+{text}
+
+Tone:
+{tone}
+
+Constraints:
+- Keep all factual claims the same.
+- If you add an example, make it clearly labeled hypothetical.
+- Remove buzzwords and repeated phrases.
+- Do not invent statistics, credentials, or real case studies.
+"""
+
+    elif prompt_mode == "Natural reconstruction":
+        return f"""
+Reconstruct the provided text to improve natural flow and reduce robotic or predictable phrasing.
+
+Text to reconstruct:
+{text}
+
+Tone:
+{tone}
+
+Do not:
+- Add an H1.
+- Use filler intros like "In today's world."
+- Keep the same paragraph count if it hurts the flow.
+- Add fake details or unsupported claims.
+"""
+
+    elif prompt_mode == "Context-enhanced rewrite":
+        return f"""
+Enhance the text by grounding it in specific, real-world context and using clear, nuanced vocabulary that fits the audience and purpose.
+
+Draft:
+{text}
+
+Context to include:
+- Audience: {audience}
+- Use case: {use_case}
+- Constraints: {constraints}
+
+Tone:
+{tone}
+
+Safety:
+- Do not invent statistics, credentials, or real case studies.
+- Keep the original meaning.
+- Make the writing clear, natural, and useful for the intended audience.
+"""
+
+    else:
+        return f"""
+Rewrite the text below to sound natural, clear, and human-written.
 Keep the original meaning.
-Do not add fake information.
 Use a {tone} tone.
+Do not add fake information.
 
 Text:
 {text}
 """
+
+
+def humanize_with_ai(text, tone, prompt_mode, audience, use_case, constraints):
+    if not API_KEY:
+        return "API key is missing."
+
+    prompt = build_prompt(text, tone, prompt_mode, audience, use_case, constraints)
 
     try:
         response = requests.post(
@@ -59,13 +119,13 @@ st.markdown("""
 <style>
     .stApp {
         background-color: #f7f7f5;
-        color: #1f2933;
+        color: #111827;
     }
 
     .main .block-container {
-        max-width: 880px;
+        max-width: 900px;
         padding-top: 55px;
-        padding-bottom: 40px;
+        padding-bottom: 45px;
     }
 
     .header {
@@ -94,7 +154,7 @@ st.markdown("""
         font-size: 17px;
         line-height: 1.65;
         color: #4b5563;
-        max-width: 680px;
+        max-width: 700px;
     }
 
     .content-card {
@@ -151,17 +211,10 @@ st.markdown("""
         letter-spacing: -0.02em;
     }
 
-    .stTextArea label, .stSelectbox label {
+    .stTextArea label, .stSelectbox label, .stTextInput label {
         font-weight: 600;
         color: #374151;
         font-size: 14px;
-    }
-
-    .footer {
-        margin-top: 28px;
-        text-align: center;
-        color: #9ca3af;
-        font-size: 13px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -172,7 +225,7 @@ st.markdown("""
     <div class="label">AI Text Humanizer</div>
     <div class="title">Make your writing sound natural.</div>
     <div class="subtitle">
-        Rewrite text into a clearer, smoother, and more human-sounding version while keeping the original meaning.
+        Rewrite text into a clearer, smoother, and more natural version while keeping the original meaning.
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -186,6 +239,15 @@ user_text = st.text_area(
     placeholder="Paste your text here..."
 )
 
+prompt_mode = st.selectbox(
+    "Rewrite style",
+    [
+        "First-person rewrite",
+        "Natural reconstruction",
+        "Context-enhanced rewrite"
+    ]
+)
+
 tone = st.selectbox(
     "Tone",
     [
@@ -195,28 +257,50 @@ tone = st.selectbox(
         "friendly",
         "formal",
         "simple",
-        "casual"
+        "casual",
+        "personal but professional"
     ]
 )
+
+audience = ""
+use_case = ""
+constraints = ""
+
+if prompt_mode == "Context-enhanced rewrite":
+    audience = st.text_input(
+        "Audience",
+        placeholder="Example: teacher, professor, client, parent, student..."
+    )
+
+    use_case = st.text_input(
+        "Use case",
+        placeholder="Example: school submission, email, report, message..."
+    )
+
+    constraints = st.text_input(
+        "Constraints",
+        placeholder="Example: 150 words, formal tone, no added facts..."
+    )
 
 if st.button("Humanize Text"):
     if user_text.strip():
         with st.spinner("Rewriting..."):
-            result = humanize_with_ai(user_text, tone)
+            result = humanize_with_ai(
+                user_text,
+                tone,
+                prompt_mode,
+                audience,
+                use_case,
+                constraints
+            )
 
         st.subheader("Humanized text")
         st.text_area(
             "Result",
             value=result,
-            height=260
+            height=280
         )
     else:
         st.warning("Please enter text first.")
 
 st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown("""
-<div class="footer">
-    Clean rewriting for clearer communication.
-</div>
-""", unsafe_allow_html=True)
